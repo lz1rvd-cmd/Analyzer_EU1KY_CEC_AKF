@@ -200,18 +200,16 @@ void OSL_CorrectErr(uint32_t fhz, float *magdif, float *phdif)
     if (-1 == idx)
         return;
     float correct, v0, diff, factor;
-    if (fhz >= CFG_GetParam(CFG_PARAM_BAND_FMAX))
-        correct = 0.0f;
-    else
-    {
-        v0=osl_errCorr[idx].mag0;
-        diff= osl_errCorr[idx + 1].mag0 - v0;
-    }
+    // LZ1RVD: at/after the last calibration point there is no idx+1 entry:
+    // v0/diff were left uninitialized (garbage correction at the top frequency).
+    int last = (idx + 1 >= (int)OSL_NUM_VALID_ENTRIES);
+    v0 = osl_errCorr[idx].mag0;
+    diff = last ? 0.0f : (osl_errCorr[idx + 1].mag0 - v0);
     if(idx >= MID_IDX)
         factor=(float)(fhz-OSL_FREQUENCY_BORDER)/OSL_SCAN_STEP-(idx-MID_IDX);
         //factor=(float)(fhz-OSL_FREQUENCY_BORDER)/OSL_SCAN_STEP;
     else
-        factor=(float)(fhz-CFG_GetParam(CFG_PARAM_BAND_FMIN)/OSL_SMALL_SCAN_STEP) -idx;
+        factor=(float)(fhz-CFG_GetParam(CFG_PARAM_BAND_FMIN))/OSL_SMALL_SCAN_STEP -idx; // LZ1RVD: bracket was misplaced -> HW correction never applied below 150 MHz
         //factor=(float)(fhz-CFG_GetParam(CFG_PARAM_BAND_FMIN)/OSL_SMALL_SCAN_STEP);
 
    // factor -= trunc(factor);
@@ -219,13 +217,10 @@ void OSL_CorrectErr(uint32_t fhz, float *magdif, float *phdif)
 
         *magdif *= (v0 + diff *factor);
 
-        if (fhz == CFG_GetParam(CFG_PARAM_BAND_FMAX))
-            correct = 0.0f;
-        else
-        {
-            v0=osl_errCorr[idx].phase0;
-            diff=osl_errCorr[idx + 1].phase0 -v0;
-        }
+        v0 = osl_errCorr[idx].phase0;
+        diff = last ? 0.0f : (osl_errCorr[idx + 1].phase0 - v0);
+        if (diff > M_PI) diff -= 2 * M_PI;       // LZ1RVD: interpolate across the +/-180 deg cut
+        else if (diff < -M_PI) diff += 2 * M_PI;
 
         correct = v0+ diff*factor;
 
@@ -480,7 +475,7 @@ static int32_t OSL_LoadFromFile(void)
 //for using other source file, without flush
 int32_t OSL_ChangeCurrentOSL(int oslIndex)
 {
-    CFG_SetParam(CFG_PARAM_OSL_SELECTED, 1);
+    CFG_SetParam(CFG_PARAM_OSL_SELECTED, oslIndex); // LZ1RVD: was hard-coded 1
     return OSL_LoadFromFile();
 }
 
@@ -581,7 +576,9 @@ static float complex OSL_CorrectG(uint32_t fhz, float complex gMeasured)
     //i = (fhz - BAND_FMIN) / OSL_SCAN_STEP; //Nearest lower OSL file record index
     i = GetIndexForFreq(fhz);
     fr1=OSL_GetCalFreqByIdx(i);
-    if((fr1==fhz)&&(i!=MID_IDX)){
+    if (i < 0)
+        return gMeasured;
+    if (((fr1==fhz)&&(i!=MID_IDX)) || (i + 1 >= (int)OSL_NUM_VALID_ENTRIES)){ // LZ1RVD: no point above the last one
         k=1; // No interpolation necessary.
         oslData = osl_data[i];
     }
@@ -645,14 +642,13 @@ float complex OSL_CorrectZ(uint32_t fhz, float complex zMeasured)
 {
     COMPLEX g = OSL_GFromZ(zMeasured, OSL_BASE_R0);
     g = OSL_CorrectG(fhz, g);
-    if (crealf(g) > 1.0f)
-        g = 1.0f + cimagf(g)*I;
-    else if (crealf(g) < -1.0f)
-        g = -1.0f + cimagf(g)*I;
-    if (cimagf(g) > 1.0f)
-        g = crealf(g) + 1.0f * I;
-    else if (cimagf(g) < -1.0f)
-        g = crealf(g) - 1.0f * I;
+    // LZ1RVD: passive load => |G| <= 1. Project onto the unit circle keeping the angle
+    // (was: clamping Re and Im separately, which let |G| reach 1.41 and distorted X).
+    {
+        float gm = cabsf(g);
+        if (gm > 1.0f)
+            g = g / gm;
+    }
     g = OSL_ZFromG(g, OSL_BASE_R0);
     return g;
 }
@@ -1074,7 +1070,11 @@ static float complex LC_OSL_CorrectG(uint32_t fhz, float complex gMeasured)
 
     int i, k=0;
 
+    if (fhz < LC_MIN_FREQ)
+        fhz = LC_MIN_FREQ;
     int lcIndex = GetLCOSLIndex(fhz);
+    if (lcIndex >= LC_OSL_ENTRIES)
+        lcIndex = LC_OSL_ENTRIES - 1; // LZ1RVD: bounds check
 
     S_OSLDATA oslData;
     oslData = lc_osl_data[lcIndex];
@@ -1096,14 +1096,13 @@ float complex LC_OSL_CorrectZ(uint32_t fhz, float complex zMeasured)
 
     g = LC_OSL_CorrectG(fhz, g);
 
-    if (crealf(g) > 1.0f)
-        g = 1.0f + cimagf(g)*I;
-    else if (crealf(g) < -1.0f)
-        g = -1.0f + cimagf(g)*I;
-    if (cimagf(g) > 1.0f)
-        g = crealf(g) + 1.0f * I;
-    else if (cimagf(g) < -1.0f)
-        g = crealf(g) - 1.0f * I;
+    // LZ1RVD: passive load => |G| <= 1. Project onto the unit circle keeping the angle
+    // (was: clamping Re and Im separately, which let |G| reach 1.41 and distorted X).
+    {
+        float gm = cabsf(g);
+        if (gm > 1.0f)
+            g = g / gm;
+    }
 
     g = OSL_ZFromG(g, OSL_BASE_R0);
     return g;

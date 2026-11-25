@@ -168,7 +168,7 @@ LCDPoint p1, p2,pr;
     else p2.x=p02.x;
     if (p01.y >= LCD_GetHeight()) p1.y = LCD_GetHeight() - 1;
     else p1.y=p01.y;
-    if (p2.y >= LCD_GetHeight()) p2.y = LCD_GetHeight() - 1;
+    if (p02.y >= LCD_GetHeight()) p2.y = LCD_GetHeight() - 1; // LZ1RVD: was p2.y (uninitialized)
     else p2.y=p02.y;
     if(p1.x==p2.x) return;
     if(p1.y==p2.y) return;

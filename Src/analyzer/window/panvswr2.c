@@ -341,7 +341,7 @@ void ShowFr(int digits) //digits: 0 ...3
 
     LCD_FillRect(LCD_MakePoint(0, 70), LCD_MakePoint(200,125), BackGrColor);
     FONT_Write(FONT_FRANBIG, TextColor, BackGrColor, 0, 70, str);// WK
-    freqChg==1;
+    freqChg=1;
 }
 
 
@@ -370,67 +370,62 @@ unsigned long GetUpper(int i){
 switch(CFG_GetParam(CFG_PARAM_REGION))
   {
 case 0:
-       if((i>=0)&&(i<=hamBandsNum1))
+       if((i>=0)&&(i<hamBandsNum1))
         return 1000*hamBands1[i].fhi;
        return 0;
 case 1:
-        if((i>=0)&&(i<=hamBandsNum2))
+        if((i>=0)&&(i<hamBandsNum2))
          return 1000*hamBands2[i].fhi;
         return 0;
 case 2:
-        if((i>=0)&&(i<=hamBandsNum3))
+        if((i>=0)&&(i<hamBandsNum3))
          return 1000*hamBands3[i].fhi;
         return 0;
 case 3:
-        if((i>=0)&&(i<=lpdNum))
+        if((i>=0)&&(i<lpdNum))
          return 1000*lpd[i].fhi;
         return 0;
 
   }
+  return 0;
 }
 
 unsigned long GetLower(int i){
 switch(CFG_GetParam(CFG_PARAM_REGION))
   {
 case 0:
-        if((i>=0)&&(i<=hamBandsNum1))
+        if((i>=0)&&(i<hamBandsNum1))
           return 1000*hamBands1[i].flo;
         return 0;
 case 1:
-        if((i>=0)&&(i<=hamBandsNum2))
+        if((i>=0)&&(i<hamBandsNum2))
           return 1000*hamBands2[i].flo;
         return 0;
 case 2:
-        if((i>=0)&&(i<=hamBandsNum3))
+        if((i>=0)&&(i<hamBandsNum3))
           return 1000*hamBands3[i].flo;
         return 0;
 case 3:
-        if((i>=0)&&(i<=lpdNum))
+        if((i>=0)&&(i<lpdNum))
           return 1000*lpd[i].flo;
         return 0;
 
   }
+  return 0;
 }
 // DG2DRF Regionsauswahl
 
 int GetBandNr(unsigned long freq){
 int i, regnu, found=0;
 
+    // LZ1RVD: every case returned the band count, so the search below never ran.
     switch(CFG_GetParam(CFG_PARAM_REGION))
   {
-    case 0:
-          regnu=hamBandsNum1;
-          return regnu;
-    case 1:
-        regnu=hamBandsNum2;
-        return regnu;
-    case 2:
-        regnu=hamBandsNum3;
-        return regnu;
-    case 3:
-        regnu=lpdNum;
-        return regnu;
-
+    case 0:  regnu=hamBandsNum1-1; break;
+    case 1:  regnu=hamBandsNum2-1; break;
+    case 2:  regnu=hamBandsNum3-1; break;
+    case 3:  regnu=lpdNum-1;       break;
+    default: return -1;
   }
 
 
@@ -560,6 +555,7 @@ int IsFinHamBands(uint32_t f_kHz)
         return 0;
     }  // LPD       10.04.2020 DG2DRF
     }
+    return 0;
 }
 
 int cursorVisible;
@@ -989,6 +985,19 @@ static void ScanRXFast(void)
         if ((0 == (i % 32)) && TOUCH_Poll(&pt))// break with a simple touch
             break;
     }
+    // LZ1RVD: with speed 12 or 14, WWIDTH (400) is not a multiple of the step, so the
+    // last point was never measured and interpolation read past the end of values[].
+    if ((WWIDTH % RXFAST_DIVIDE_FREQ) != 0)
+    {
+        uint32_t freq = fstart + (BSVALUES[span] * 1000);
+        DSP_Measure(freq, 1, 1, CFG_GetParam(CFG_PARAM_PAN_NSCANS));
+        float complex rx = DSP_MeasuredZ();
+        if (isnan(crealf(rx)) || isinf(crealf(rx)))
+            rx = 0.0f + cimagf(rx) * I;
+        if (isnan(cimagf(rx)) || isinf(cimagf(rx)))
+            rx = crealf(rx) + 0.0fi;
+        values[WWIDTH] = rx;
+    }
     GEN_SetMeasurementFreq(0);
     isMeasured = 1;
 
@@ -1011,6 +1020,8 @@ static void ScanRXFast(void)
             fi0 = i - RXFAST_DIVIDE_FREQ - fr;
             fi1 = i - fr;
             fi2 = i + (RXFAST_DIVIDE_FREQ - fr);
+            if (fi2 > WWIDTH)
+                fi2 = WWIDTH; // LZ1RVD: last (measured) point, stay inside values[]
         }
         float complex G0 = OSL_GFromZ(values[fi0], 50.f);
         float complex G1 = OSL_GFromZ(values[fi1], 50.f);
@@ -1029,8 +1040,8 @@ static void ScanRX(int selector)
 {
     char str[15];
     float complex rx, rx0;
-    float newX, oldX, MaxX, absX;
-    uint32_t i, k, sel, imax;
+    float newX = 0.f, oldX = 0.f, MaxX, absX; // LZ1RVD: oldX was read uninitialized on first point
+    uint32_t i, k, sel, imax = 0;
     uint32_t fstart, freq1, deltaF;
 
     f1=CFG_GetParam(CFG_PARAM_PAN_F1);
@@ -2127,7 +2138,7 @@ int Scan200(uint8_t line, int index1)
 }
 
 
-char str[6];
+char str[48]; // LZ1RVD: was [6]; QuCalibrate writes "C0 = xx.xx pF" here (overflowed into globals)
 int i;
 
 uint32_t freqx;// kHz
@@ -2184,6 +2195,8 @@ void ShowResult(int indx)
     VSWR = DSP_CalcVSWR(z0);
     if(VSWR>99.0)
         sprintf(str, "%.0f", VSWR);
+    else if (VSWR < 10.0f)
+        sprintf(str, "%.2f", VSWR); // LZ1RVD: 2 decimals for Multi SWR
     else
         sprintf(str, "%.1f", VSWR);
 
@@ -3238,7 +3251,7 @@ void QuCalibrate(void)
 void QuMeasure(void)
 {
     int i;
-    char str[10];
+    char str[48]; // LZ1RVD: was [10] - "Fs = 14318180  " etc. overflowed the stack buffer
     float Cs,Ls,Q;
 
 

@@ -247,7 +247,7 @@ void PROTOCOL_Handler_AA600(void)
             rx = DSP_MeasuredZ();
             while(AAUART_IsBusy())
                 Sleep(0); //prevent overwriting the data being transmitted
-            sprintf(txstr, "%.6f,%.2f,%.2f\r", ((float)fint) / 1000000., crealf(rx), cimagf(rx));
+            sprintf(txstr, "%u.%06u,%.2f,%.2f\r", (unsigned)(fint / 1000000u), (unsigned)(fint % 1000000u), crealf(rx), cimagf(rx)); // LZ1RVD: exact freq (float lost up to 16 Hz)
             AAUART_PutString(txstr);
             fint += fstep;
         }

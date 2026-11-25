@@ -123,7 +123,11 @@ int i, fstep, maxCount;
             if(i%2==0)
                 freq_domain[i] = G * halfKBDwnd[i/2];
             else
-                freq_domain[i] = G * (halfKBDwnd[i/2]+halfKBDwnd[i/2-1])/2.0f;
+            {   // LZ1RVD: odd bin lies between window points i/2 and i/2+1
+                // (was i/2-1: shifted window and read halfKBDwnd[-1] for i=1)
+                int w1 = (i/2 + 1 < 256) ? (i/2 + 1) : 255;
+                freq_domain[i] = G * (halfKBDwnd[i/2]+halfKBDwnd[w1])/2.0f;
+            }
         }
         else freq_domain[i] = G * halfKBDwnd[i];
         LCD_SetPixel(LCD_MakePoint(X0 + i/2 + 72, 145), LCD_BLUE);

@@ -466,7 +466,7 @@ void Measure_LCR_Proc(void)
     MeasureFreq = (uint32_t *)malloc(sizeof(uint32_t) * 55);
 
     //Check Range
-    if (CFG_GetParam(CFG_PARAM_LC_INDEX) < 0 || CFG_GetParam(CFG_PARAM_LC_INDEX) > 6)
+    if (CFG_GetParam(CFG_PARAM_LC_INDEX) > 5) // LZ1RVD: index 6 read LC_MEASURE_FREQS[7] (out of table)
     {
         CFG_SetParam(CFG_PARAM_LC_INDEX, 5);    //Default Value
         MeasureStartFreq = GetLCStepFreq(CFG_GetParam(CFG_PARAM_LC_INDEX));
@@ -712,7 +712,7 @@ void Measure_LCR_Proc(void)
 
                             for (int j = i + 1; j <= validStartIndex; j++)
                             {
-                                qualityValue += powf((1e6 * fabsf(im) / (2.0 * 3.1415926 * MeasureFreq[j])) - qualityAVG, 2);
+                                qualityValue += powf((1e6 * fabsf(MeasureIM[j]) / (2.0 * 3.1415926 * MeasureFreq[j])) - qualityAVG, 2); // LZ1RVD: was 'im' (the invalid sample)
                             }
 
                             qualityValue = sqrtf(qualityValue / (validCount -1));
@@ -766,7 +766,7 @@ void Measure_LCR_Proc(void)
 
                             for (int j = validStartIndex; j < i; j++)
                             {
-                                qualityValue += powf((1e12 / (2.0 * 3.1415926 * MeasureFreq[j] * fabs(im))) - qualityAVG, 2);
+                                qualityValue += powf((1e12 / (2.0 * 3.1415926 * MeasureFreq[j] * fabs(MeasureIM[j]))) - qualityAVG, 2); // LZ1RVD: was 'im'
                             }
                             qualityValue = sqrtf(qualityValue / (validCount -1));
                             qualityValue = qualityValue / qualityAVG * 100;

@@ -746,7 +746,7 @@ void TrackTouchExecute(LCDPoint pt){
         if (autofast == 0)
         {
             autofast = 1;
-            sprintf(tmpBuff, "AA EU1KY-KD8CEC-DH1AKF AUTO: [%d] ", autoScanFactor);
+            sprintf(tmpBuff, "AA EU1KY mod LZ1RVD AUTO: [%d] ", autoScanFactor);
             FONT_Write(FONT_FRAN, TextColor, BackGrColor, 0, 0, tmpBuff);
             Track_DrawGrid(2);
             cursorChangeCount = 0;
@@ -1079,7 +1079,7 @@ extern int OSL_ENTRIES;
         else cursorPos= 0;
     SetColours();
     LCD_FillAll(BackGrColor);
-    FONT_Write(FONT_FRAN, TextColor, BackGrColor, 0, 0, "AA EU1KY-KD8CEC-DH1AKF ");
+    FONT_Write(FONT_FRAN, TextColor, BackGrColor, 0, 0, "AA EU1KY mod LZ1RVD ");
     FONT_Write(FONT_FRANBIG, TextColor, BackGrColor, 230, 100, "|S21|Gain");
     Sleep(1000);
     while(TOUCH_IsPressed());

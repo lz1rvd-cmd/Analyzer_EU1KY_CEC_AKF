@@ -88,6 +88,8 @@ void TEXTBOX_SetText(TEXTBOX_CTX_t *ctx, uint32_t idx, const char* txt)
     if (0 == ctx || 0 == txt)
         return;
 TEXTBOX_t *tb = TEXTBOX_Find(ctx, idx);
+    if (0 == tb) // LZ1RVD: index not found
+        return;
     if (TEXTBOX_TYPE_TEXT != tb->type)
         return;
     TEXTBOX_Clear(ctx, idx);

@@ -46,9 +46,12 @@ int PrintLine(int X0, int Y0, float k1, float k2, float k3){
 char str1[32];
 char str2[32];
 char str3[32];
-	PrintValue(k1, str1);
+	// LZ1RVD: the solver returns (load-side shunt, series, source-side shunt);
+	// the screen header is "SrcParallel Serial LoadParallel", so print in reverse order.
+	// Verified by simulating the resulting network for 200000 random loads.
+	PrintValue(k3, str1);
 	PrintValue(k2, str2);
-	PrintValue(k3, str3);
+	PrintValue(k1, str3);
 	FONT_Print(FONT_FRAN, LCD_WHITE, LCD_BLACK, X0, Y0, "%8s   %8s   %8s", str1, str2, str3);
 	return Y0 + FONT_GetHeight(FONT_FRAN) + 4;
 
@@ -58,7 +61,7 @@ char str3[32];
 int calc_hi(int X0, int Y0, float R0, float complex ZL){
     float R = crealf(ZL);
     float X = cimagf(ZL);
-    int Ynew;
+    int Ynew = Y0;
 	float m1, m2, m3, m4, m5, m6;
     int ret = 0;
     if (R0 == R) return Y0;
@@ -104,7 +107,7 @@ float R = crealf(ZL);
 float X = cimagf(ZL);
 float m1, m2, m3, m4, m5, m6;
 int ret = 0;
-int Ynew;
+int Ynew = Y0;
     m1 = m2 = m3 = m4 = m5 = m6 = NORESULT;
     if (R0 == R) {
          m2 = -X;// Ser = -X compensates X
@@ -160,7 +163,7 @@ float vswr = DSP_CalcVSWR(ZL);
     float R0 = (float)CFG_GetParam(CFG_PARAM_R0);
     if ((crealf(ZL) > (0.91f * R0)) && (crealf(ZL) < (1.1f * R0)))
     {//Only one solution is enough: just a serial reactance, this gives SWR < 1.1 if R is within the range 0.91 .. 1.1 of R0
-		PrintLine(X0, Y0, NORESULT, NORESULT, -cimagf(ZL));
+		PrintLine(X0, Y0, NORESULT, -cimagf(ZL), NORESULT); // LZ1RVD: series element, not shunt
         return;
     }
 			//Calc Lo-Z solutions here

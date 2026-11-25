@@ -62,6 +62,21 @@ static float phdifdeg = 0.f;                 //Measured phase difference in degr
 static DSP_RX mZ = DSP_Z0 + 0.0fi;
 
 static float DSP_CalcR(void);
+
+// LZ1RVD: keep all phase samples on the same side of the +/-PI cut as the first
+// sample, otherwise averaging e.g. +179 deg and -179 deg gives 0 deg instead of 180 deg.
+static float _unwrap_to(float ph, float ref)
+{
+    while (ph - ref > M_PI)  ph -= 2 * M_PI;
+    while (ph - ref < -M_PI) ph += 2 * M_PI;
+    return ph;
+}
+static float _wrap_pi(float ph)
+{
+    while (ph > M_PI)   ph -= 2 * M_PI;
+    while (ph <= -M_PI) ph += 2 * M_PI;
+    return ph;
+}
 float DSP_CalcX(void);
 
 //Ensure f is nonzero (to be safely used as denominator)
@@ -162,11 +177,11 @@ void DSP_Init(void)
     uint32_t tmp;
 
     tmp = CFG_GetParam(CFG_PARAM_BRIDGE_RM);
-    Rmeas = *(float*)&tmp;
+    memcpy(&Rmeas, &tmp, sizeof(float)); // LZ1RVD: no type-punning (strict aliasing)
     tmp = CFG_GetParam(CFG_PARAM_BRIDGE_RADD);
-    RmeasAdd = *(float*)&tmp;
+    memcpy(&RmeasAdd, &tmp, sizeof(float)); // LZ1RVD: no type-punning (strict aliasing)
     tmp = CFG_GetParam(CFG_PARAM_BRIDGE_RLOAD);
-    Rload = *(float*)&tmp;
+    memcpy(&Rload, &tmp, sizeof(float)); // LZ1RVD: no type-punning (strict aliasing)
 
     OSL_Select(CFG_GetParam(CFG_PARAM_OSL_SELECTED));
     OSL_LoadErrCorr();
@@ -305,17 +320,21 @@ REMEASURE:
         else if (pdif > M_PI)
             pdif -= 2 * M_PI;
 
-        phdif_buf[i] = pdif;
+        phdif_buf[i] = (i == 0) ? pdif : _unwrap_to(pdif, phdif_buf[0]);
     }
 
     //Now perform filtering to remove outliers with sigma > 1.0
     mag_v = DSP_FilterArray(mag_v_buf, nMeasurements, retries);
     mag_i = DSP_FilterArray(mag_i_buf, nMeasurements, retries);
     phdif = DSP_FilterArray(phdif_buf, nMeasurements, retries);
+    if (phdif != 0.0f) phdif = _wrap_pi(phdif);
     if (mag_v == 0.0f || mag_i == 0.0f || phdif == 0.0f)
     {//need to measure again : too much noise detected
-        retries--;
-        goto REMEASURE;
+        if (retries > -20)  // LZ1RVD: original semantics (retry until clean), with a safety limit
+        {
+            retries--;
+            goto REMEASURE;
+        }
     }
 
     magdif = mag_v / _nonz(mag_i);
@@ -384,17 +403,21 @@ REMEASURE:
         else if (pdif > M_PI)
             pdif -= 2 * M_PI;
 
-        phdif_buf[i] = pdif;
+        phdif_buf[i] = (i == 0) ? pdif : _unwrap_to(pdif, phdif_buf[0]);
     }
 
     //Now perform filtering to remove outliers with sigma > 1.0
     mag_v = DSP_FilterArray(mag_v_buf, nMeasurements, retries);
     mag_i = DSP_FilterArray(mag_i_buf, nMeasurements, retries);
     phdif = DSP_FilterArray(phdif_buf, nMeasurements, retries);
+    if (phdif != 0.0f) phdif = _wrap_pi(phdif);
     if (mag_v == 0.0f || mag_i == 0.0f || phdif == 0.0f)
     {//need to measure again : too much noise detected
-        retries--;
-        goto REMEASURE;
+        if (retries > -20)  // LZ1RVD: original kept retrying while 'retries' went negative
+        {                   // (i.e. until a clean set); keep that, with a safety limit
+            retries--;
+            goto REMEASURE;
+        }
     }
 
     magdif = mag_v / _nonz(mag_i);
@@ -476,17 +499,21 @@ REMEASURE:
         else if (pdif > M_PI)
             pdif -= 2 * M_PI;
 
-        phdif_buf[i] = pdif;
+        phdif_buf[i] = (i == 0) ? pdif : _unwrap_to(pdif, phdif_buf[0]);
     }
 
     //Now perform filtering to remove outliers with sigma > 1.0
     mag_v = DSP_FilterArray(mag_v_buf, nMeasurements, retries);
     mag_i = DSP_FilterArray(mag_i_buf, nMeasurements, retries);
     phdif = DSP_FilterArray(phdif_buf, nMeasurements, retries);
+    if (phdif != 0.0f) phdif = _wrap_pi(phdif);
     if (mag_v == 0.0f || mag_i == 0.0f || phdif == 0.0f)
     {//need to measure again : too much noise detected
-        retries--;
-        goto REMEASURE;
+        if (retries > -20)  // LZ1RVD: original kept retrying while 'retries' went negative
+        {                   // (i.e. until a clean set); keep that, with a safety limit
+            retries--;
+            goto REMEASURE;
+        }
     }
 
     magdif = mag_v / _nonz(mag_i);
@@ -536,7 +563,9 @@ float DSP_MeasureTrack(uint32_t freqHz, int applyErrCorr, int applyOSL, int nMea
     //Init
     memset(audioBuf, 0, sizeof(audioBuf));
 
-    for (i = 0; i <= nMeasurements; i++)
+    if (nMeasurements < 1) nMeasurements = 1;
+    if (nMeasurements > MAXNMEAS) nMeasurements = MAXNMEAS;
+    for (i = 0; i < nMeasurements; i++) // LZ1RVD: was <= (wrote one past the buffer)
     {
 
         DSP_Sample(); //TILE:4.7Sec
@@ -594,20 +623,20 @@ REMEASURE:
 
         //Correct phase difference quadrant
         pdif = fmodf(pdif + M_PI, 2 * M_PI) - M_PI;
-        float orgpdif = pdif;
 
         if (pdif < -M_PI)
             pdif += 2 * M_PI;
         else if (pdif > M_PI)
             pdif -= 2 * M_PI;
 
-        phdif_buf[i] = pdif;
+        phdif_buf[i] = (i == 0) ? pdif : _unwrap_to(pdif, phdif_buf[0]);
     }
 
     //Now perform filtering to remove outliers with sigma > 1.0
     mag_v = DSP_FilterArray(mag_v_buf, nMeasurements, retries);
     mag_i = DSP_FilterArray(mag_i_buf, nMeasurements, retries);
     phdif = DSP_FilterArray(phdif_buf, nMeasurements, retries);
+    if (phdif != 0.0f) phdif = _wrap_pi(phdif);
 
     magdif = mag_v / _nonz(mag_i);
 

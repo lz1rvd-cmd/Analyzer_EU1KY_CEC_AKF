@@ -492,7 +492,7 @@ if (DatumDDMMYYYY)
     PROTOCOL_Reset();
     InitVoltage();
 
-    FONT_Write(FONT_FRAN, LCD_WHITE, 0, 420, 9, AAVERSION_CECV);
+    FONT_Write(FONT_FRAN, LCD_WHITE, 0, 356, 9, AAVERSION_CECV);
 
     counter11=98;
 
@@ -586,7 +586,7 @@ if (DatumDDMMYYYY)
                 PROTOCOL_Reset();
 
                 //Write Version Number
-                FONT_Write(FONT_FRAN, LCD_WHITE, 0, 420, 9, AAVERSION_CECV);
+                FONT_Write(FONT_FRAN, LCD_WHITE, 0, 356, 9, AAVERSION_CECV);
 
                 Voltage();  //reduce delay time for display voltage information
                 DisplayVoltage();
@@ -758,7 +758,7 @@ void InitVoltage(void){
 //KD8CEC : for Visible Voltage indicator from hidden by other screen
 void DisplayVoltage()
 {
-    char text1[10];
+    char text1[24]; // LZ1RVD: was [10], "%5.2fV %3.0f " needs 12 bytes
     LCDColor vbg;
 
     //Modified by KD8CEC for users request
@@ -785,7 +785,7 @@ void DisplayVoltage()
 //KD8CEC : RESIZE FONT AND CHANGE POSITION
 void Voltage(void)
 {
-    char text1[10];
+    char text1[24]; // LZ1RVD: was [10], "%5.2fV %3.0f " needs 12 bytes
     int VoltRaw;
     if(Volt_max_Display == 0)
         return;

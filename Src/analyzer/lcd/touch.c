@@ -1,7 +1,7 @@
 #include "touch.h"
 #include "stm32746g_discovery_ts.h"
 #include "stm32746g_discovery_lcd.h"
-#include "lcd.h"
+#include "LCD.h"
 #include "config.h"
 
 void TOUCH_Init(void)

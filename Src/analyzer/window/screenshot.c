@@ -181,7 +181,7 @@ int hh, mm;
 
 int16_t SCREENSHOT_SelectFileNames(int fileNoMin)
 {
-char string0[10];
+char string0[16]; // LZ1RVD: date "YYYY MM DD" needs 11 bytes
 
     f_mkdir(SNDIR);
     //Scan dir for snapshot files

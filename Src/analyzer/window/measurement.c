@@ -181,7 +181,7 @@ float r= fabsf(crealf(rx));
 float im= cimagf(rx);
 float rp,xp,Cppf,Lpuh;
 if(r>0.05) rp=r+im*(im/r); else rp=10000.0;
-if(im*im>0.0025) xp=im+r*(r/im); else im=10000.0;
+if(im*im>0.0025) xp=im+r*(r/im); else xp=10000.0; // LZ1RVD: was 'im=10000' -> |X|<0.05 showed as >5k
 if(parallel==1){
     r=rp;
     im=xp;
@@ -227,8 +227,10 @@ char str[40] = "";
 //    FONT_ClearHalfLine(FONT_FRANBIG, BackGrColor, 62);
     if(VSWR>100.0)
         sprintf(str, "VSWR: %.0f (Z0 %d)", VSWR, CFG_GetParam(CFG_PARAM_R0));
+    else if (VSWR < 10.0f) // LZ1RVD: 2 decimals below 10 (1.06 instead of 1.1)
+        sprintf(str, "VSWR: %.2f (Z0 %d)   ", VSWR, CFG_GetParam(CFG_PARAM_R0));
     else
-    sprintf(str, "VSWR: %.1f (Z0 %d)   ", VSWR, CFG_GetParam(CFG_PARAM_R0));
+        sprintf(str, "VSWR: %.1f (Z0 %d)   ", VSWR, CFG_GetParam(CFG_PARAM_R0));
     FONT_Write(FONT_FRANBIG, TextColor, BackGrColor, 4, 63, str);
 
     if(im>=0){
@@ -236,9 +238,11 @@ char str[40] = "";
         if((im > 1.0) && (im < 5000.0f))// XX > 2.0 && XX < 1500.
         {
             float Luh = 1e6 * fabsf(im) / (2.0 * 3.1415926 * GEN_GetLastFreq());
-            if(parallel==1)
-                sprintf(str, "Lp= %.2f uH   ", Luh);
-            else sprintf(str, "Ls= %.2f uH   ", Luh);
+            // LZ1RVD: nH below 1 uH (VHF/UHF)
+            if (Luh < 1.0f)
+                sprintf(str, "%s= %.1f nH   ", (parallel==1) ? "Lp" : "Ls", Luh * 1000.f);
+            else
+                sprintf(str, "%s= %.2f uH   ", (parallel==1) ? "Lp" : "Ls", Luh);
         }
         else {
             if(parallel==1)
@@ -250,9 +254,9 @@ char str[40] = "";
         if ((im < -1.0) && (im > -5000.0f))
         {
             float Cpf = 1e12 / (2.0 * 3.1415926 * GEN_GetLastFreq() * fabs(im));
-            if(parallel==1)
-                sprintf(str, "Cp= %.0f pF    ", Cpf);
-            else sprintf(str, "Cs= %.0f pF   ", Cpf);
+            // LZ1RVD: more digits for small capacitances (UHF: 1.03 pF, not "1 pF")
+            const char *cfmt = (Cpf < 10.f) ? "%s= %.2f pF    " : (Cpf < 100.f) ? "%s= %.1f pF    " : "%s= %.0f pF    ";
+            sprintf(str, cfmt, (parallel==1) ? "Cp" : "Cs", Cpf);
         }
         else {
             if(parallel==1)
@@ -323,8 +327,11 @@ static uint32_t fx = 14000000ul; //Scan range start frequency, in Hz
  void FDecr(uint32_t step)
 {
     uint32_t MeasurementFreq = CFG_GetParam(CFG_PARAM_MEAS_F);
-    MeasurementFreq -= step;
-    if(MeasurementFreq < CFG_GetParam(CFG_PARAM_BAND_FMIN)) MeasurementFreq=CFG_GetParam(CFG_PARAM_BAND_FMIN);;
+    // LZ1RVD: unsigned underflow (e.g. 1 MHz - 2 MHz step) wrapped to ~4.29 GHz
+    if (MeasurementFreq < CFG_GetParam(CFG_PARAM_BAND_FMIN) + step)
+        MeasurementFreq = CFG_GetParam(CFG_PARAM_BAND_FMIN);
+    else
+        MeasurementFreq -= step;
     CFG_SetParam(CFG_PARAM_MEAS_F, MeasurementFreq);
     fChanged = 1;
     freqMHzf=MeasurementFreq/1000000.;
@@ -461,7 +468,7 @@ void Single_Frequency_Proc(void)
 {
     float delta, r, im;
     uint32_t fbkup,f_mess;
-    uint32_t activeLayer;
+    uint32_t activeLayer = 0; // LZ1RVD: was uninitialized; 0 = behaviour of the original 1.03 binary
     int l,j=0,k, firstRun;
     uint32_t speedcnt = 0;
     bool first = true;
@@ -651,7 +658,12 @@ void Single_Frequency_Proc(void)
            // rx0 = DSP_MeasuredZ();
             delta = fabsf(crealf(rx0)-crealf(rx));
             delta+=fabsf(cimagf(rx0)-cimagf(rx));
-            delta=delta/(crealf(rx0)+crealf(rx));
+            // LZ1RVD: original formula; only guard the R == 0 case (open/short), where it
+            // divided by zero and forced a full redraw on every cycle.
+            if ((crealf(rx0)+crealf(rx)) > 1.0f)
+                delta=delta/(crealf(rx0)+crealf(rx));
+            else
+                delta=delta/(cabsf(rx0)+cabsf(rx)+1.0f);
             if(delta>0.4){// was 0.06
                 MeasRedrawWindow = 1;
                 InitScan500();
@@ -671,8 +683,6 @@ void Single_Frequency_Proc(void)
                 FONT_Write(FONT_FRAN, TextColor, BackGrColor, 295, 68, "LC match      ");
             else {
                 FONT_Write(FONT_FRAN, TextColor, BackGrColor, 295, 68, "Smith diagram ");
-                //MeasureFrequency();
-
             }
             uint32_t speedcnt = 0;
             meas_maxstep = 500000;
@@ -943,7 +953,7 @@ static LCDPoint pt;
                         }
                     }
                 }
-                sprintf(str, "SWR: %.1f  ", vswrf);
+                sprintf(str, (vswrf < 10.f) ? "SWR: %.2f  " : "SWR: %.1f  ", vswrf); // LZ1RVD
                 LCD_FillRect(LCD_MakePoint(200, 70), LCD_MakePoint(470,125), BackGrColor);
                 FONT_Write(FONT_FRANBIG, TextColor, BackGrColor, 200, 70, str);
                 if((SWRTone==1)&&(muted==0)){

@@ -221,7 +221,7 @@ void PROTOCOL_Handler_VNA(void)
 
     for (int i = 0; i < NumberF; i++)
     {
-        chkFreq = (uint32_t)(0.093132242 * ((float)fint));
+        chkFreq = (uint32_t)((((uint64_t)fint) * 400000000ull + 0x80000000ull) >> 32); // LZ1RVD: exact DDS word -> Hz (400 MHz / 2^32)
 
         if (chkFreq < 100000 || chkFreq > 1000000000)
         {
@@ -244,18 +244,14 @@ void PROTOCOL_Handler_VNA(void)
 
         //uint32_t adcamp = (crealf(rx) + floatToADCOffset) * floatToADCScale;
         //uint32_t adcphs = (cimagf(rx) + floatToADCOffset) * floatToADCScale;
-        adcamp = (mag1 + floatToADCOffset) * floatToADCScale;
-        adcphs = (phase1 + floatToADCOffset) * floatToADCScale;
-
-        if (adcphs < 0)
-            adcphs = 0;
-        else if (adcphs >= 4096)
-            adcphs = 4095;
-
-        if (adcamp < 0)
-            adcamp = 0;
-        else if (adcamp >= 4096)
-            adcphs = 4095;
+        // LZ1RVD: clamp in signed arithmetic (negative float -> uint32 is undefined),
+        // and the amplitude overflow branch used to clamp the phase instead.
+        int32_t iamp = (int32_t)((mag1 + floatToADCOffset) * floatToADCScale);
+        int32_t iphs = (int32_t)((phase1 + floatToADCOffset) * floatToADCScale);
+        if (iphs < 0) iphs = 0; else if (iphs >= 4096) iphs = 4095;
+        if (iamp < 0) iamp = 0; else if (iamp >= 4096) iamp = 4095;
+        adcamp = (uint32_t)iamp;
+        adcphs = (uint32_t)iphs;
 
         //DSP_RX rx = DSP_MeasuredZ();
         while(AAUART_IsBusy())
@@ -419,7 +415,7 @@ void PROTOCOL_Handler_VNA(void)
             rx = DSP_MeasuredZ();
             while(AAUART_IsBusy())
                 Sleep(0); //prevent overwriting the data being transmitted
-            sprintf(txstr, "%.6f,%.2f,%.2f\r", ((float)fint) / 1000000., crealf(rx), cimagf(rx));
+            sprintf(txstr, "%u.%06u,%.2f,%.2f\r", (unsigned)(fint / 1000000u), (unsigned)(fint % 1000000u), crealf(rx), cimagf(rx)); // LZ1RVD
             AAUART_PutString(txstr);
             fint += fstep;
         }

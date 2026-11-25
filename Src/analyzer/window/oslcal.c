@@ -310,7 +310,7 @@ static void _hit_att_scan(void) // *********************************************
 static int rq21Exit;
 
 static void hit_exS21(void){
-    if(progress=1) SaveS21CorrToFile();// save without attenuator values
+    if(progress==1) SaveS21CorrToFile();// save without attenuator values
     rq21Exit = 1;
 }
 

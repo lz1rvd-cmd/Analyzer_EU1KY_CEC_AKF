@@ -473,11 +473,11 @@ void CFG_Init(void)
     CFG_SetParam(CFG_PARAM_GEN_F, 14000000ul);
     CFG_SetParam(CFG_PARAM_PAN_CENTER_F, 0);
     float tmp = 5.1f;
-    CFG_SetParam(CFG_PARAM_BRIDGE_RM, *((uint32_t*)&tmp));
+    { uint32_t u; memcpy(&u, &tmp, 4); CFG_SetParam(CFG_PARAM_BRIDGE_RM, u); }
     tmp = 200.f;
-    CFG_SetParam(CFG_PARAM_BRIDGE_RADD, *((uint32_t*)&tmp));
+    { uint32_t u; memcpy(&u, &tmp, 4); CFG_SetParam(CFG_PARAM_BRIDGE_RADD, u); }
     tmp = 51.f;
-    CFG_SetParam(CFG_PARAM_BRIDGE_RLOAD, *((uint32_t*)&tmp));
+    { uint32_t u; memcpy(&u, &tmp, 4); CFG_SetParam(CFG_PARAM_BRIDGE_RLOAD, u); }
     CFG_SetParam(CFG_PARAM_COM_PORT, COM1);
     CFG_SetParam(CFG_PARAM_COM_SPEED, 38400);
     CFG_SetParam(CFG_PARAM_LOWPWR_TIME, 0);
@@ -604,6 +604,10 @@ void CFG_Init(void)
     }
 
     if ((CFG_GetParam(CFG_PARAM_BAND_FMIN) >= 500000ul)) CFG_SetParam(CFG_PARAM_BAND_FMIN, 500000ul);
+    // LZ1RVD: OSL tables are sized for FMIN >= BAND_FMIN on a 100 kHz grid; a smaller or
+    // off-grid FMIN overflowed osl_data[] / shifted the calibration grid.
+    if ((CFG_GetParam(CFG_PARAM_BAND_FMIN) < BAND_FMIN) || (CFG_GetParam(CFG_PARAM_BAND_FMIN) % 100000ul != 0))
+        CFG_SetParam(CFG_PARAM_BAND_FMIN, BAND_FMIN);
     if ((CFG_GetParam(CFG_PARAM_BAND_FMAX) <= BAND_FMIN) || (CFG_GetParam(CFG_PARAM_BAND_FMAX) % 1000000 != 0))
         CFG_SetParam(CFG_PARAM_BAND_FMAX, 150000000ul);
     if (CFG_GetParam(CFG_PARAM_TDR_VF) < 1 || CFG_GetParam(CFG_PARAM_TDR_VF) > 100)
@@ -750,7 +754,7 @@ const char * CFG_GetStringValue(uint32_t param_idx)
         sprintf(tstr, "%d", (int)((int32_t)uval));
         break;
     case CFG_PARAM_T_F32:
-        sprintf(tstr, "%f", *(float*)&uval);
+        { float fv; memcpy(&fv, &uval, 4); sprintf(tstr, "%f", fv); }
         break;
     case CFG_PARAM_T_CH:
         memcpy(tstr, &uval, 4);

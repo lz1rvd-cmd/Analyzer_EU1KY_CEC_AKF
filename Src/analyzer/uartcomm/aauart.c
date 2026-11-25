@@ -72,10 +72,11 @@ int DBG_Printf(const char *fmt, ...)
     int np = 0;
     va_list ap;
     va_start(ap, fmt);
-    np = vsnprintf(tmpBuf, 255, fmt, ap);
-    tmpBuf[np] = '\0';
+    np = vsnprintf(tmpBuf, sizeof(tmpBuf), fmt, ap);
     va_end(ap);
+    if (np < 0) np = 0;
     DBG_Str(tmpBuf);
+    return np;
 }
 
 //=======================================================================

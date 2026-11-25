@@ -1,3 +1,19 @@
+# EU1KY AA v3 — mod LZ1RVD (r10)
+
+Fork of the DH1AKF & KD8CEC firmware (ver 1.03, 3.0d 2020-12-16) with bug fixes by LZ1RVD.
+
+- Verified on hardware against the original 1.03 binary with the same load and calibration
+  (14 / 144 / 430 / 1240 MHz), no display flicker.
+- Measurement algorithm and screen drawing are unchanged from the original; only clear bugs
+  are fixed (wrong X display, LC-match columns, HW-correction bracket bug, buffer overflows,
+  OSL edge cases, TDR window index, exact frequencies for AntScope, ...).
+- Full list: [CHANGES_LZ1RVD.md](CHANGES_LZ1RVD.md). Ready binary: see Releases.
+- Linux/macOS build: `make -f linux.mk -j8` (arm-none-eabi-gcc). Windows/EmBitz build unchanged.
+
+Note: after switching from the original firmware, redo HW calibration (jumper on HWCal) and OSL calibration.
+
+---------------------------------------------------
+
 # antennaanalyzer
 EU1KY Antenna Analyzer Firmware modified by DH1AKF and KD8CEC
 Actual informations you can find at https://groups.io/g/Analyzer-EU1KY

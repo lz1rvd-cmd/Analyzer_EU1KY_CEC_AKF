@@ -542,6 +542,7 @@ int Delta(int binMax0, int binMax1, int binMax2){
         //color=LCD_COLOR_ORANGE;
         return binMax2-176;
     }
+    return 0;
 }
 
 void ShowSpectLine(int x){

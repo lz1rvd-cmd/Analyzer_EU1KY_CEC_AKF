@@ -427,8 +427,8 @@ void GetTimeStrByFileIndex(int fileIndex, char *str)
 }
 
 void recMenuDraw(void){
-    char strBuff[10];
-    char timeBuff[10];
+    char strBuff[32]; // LZ1RVD: "[%2d] Empty" needs 11 bytes
+    char timeBuff[24];
     uint32_t LCSaveColor = TextColor;
 
     //Bottom Menu
