@@ -608,8 +608,18 @@ void CFG_Init(void)
     // off-grid FMIN overflowed osl_data[] / shifted the calibration grid.
     if ((CFG_GetParam(CFG_PARAM_BAND_FMIN) < BAND_FMIN) || (CFG_GetParam(CFG_PARAM_BAND_FMIN) % 100000ul != 0))
         CFG_SetParam(CFG_PARAM_BAND_FMIN, BAND_FMIN);
-    if ((CFG_GetParam(CFG_PARAM_BAND_FMAX) <= BAND_FMIN) || (CFG_GetParam(CFG_PARAM_BAND_FMAX) % 1000000 != 0))
+    // LZ1RVD r11: the OSL tables need 150 MHz <= FMAX <= MAX_BAND_FREQ for every synthesizer
+    // type. FMAX below 150 MHz made (FMAX - 150 MHz) wrap around -> millions of OSL entries
+    // -> f_read() over the whole RAM. The menu only offers 150..1450 MHz, so a valid
+    // config is never changed by this.
+    if ((CFG_GetParam(CFG_PARAM_BAND_FMAX) < 150000000ul) || (CFG_GetParam(CFG_PARAM_BAND_FMAX) > MAX_BAND_FREQ)
+        || (CFG_GetParam(CFG_PARAM_BAND_FMAX) % 1000000 != 0))
         CFG_SetParam(CFG_PARAM_BAND_FMAX, 150000000ul);
+    // LZ1RVD r11: number of scans must fit the DSP buffers (menu values are 1..15)
+    if (CFG_GetParam(CFG_PARAM_MEAS_NSCANS) < 1 || CFG_GetParam(CFG_PARAM_MEAS_NSCANS) > 15)
+        CFG_SetParam(CFG_PARAM_MEAS_NSCANS, 1);
+    if (CFG_GetParam(CFG_PARAM_OSL_NSCANS) < 1 || CFG_GetParam(CFG_PARAM_OSL_NSCANS) > 15)
+        CFG_SetParam(CFG_PARAM_OSL_NSCANS, 1);
     if (CFG_GetParam(CFG_PARAM_TDR_VF) < 1 || CFG_GetParam(CFG_PARAM_TDR_VF) > 100)
         CFG_SetParam(CFG_PARAM_TDR_VF, 66);
 

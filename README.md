@@ -1,4 +1,4 @@
-# EU1KY AA v3 — mod LZ1RVD (r10)
+# EU1KY AA v3 — mod LZ1RVD (r11)
 
 Fork of the DH1AKF & KD8CEC firmware (ver 1.03, 3.0d 2020-12-16) with bug fixes by LZ1RVD.
 
@@ -7,6 +7,7 @@ Fork of the DH1AKF & KD8CEC firmware (ver 1.03, 3.0d 2020-12-16) with bug fixes 
 - Measurement algorithm and screen drawing are unchanged from the original; only clear bugs
   are fixed (wrong X display, LC-match columns, HW-correction bracket bug, buffer overflows,
   OSL edge cases, TDR window index, exact frequencies for AntScope, ...).
+- r11: same measurement path as r10; with a fresh OSL calibration it reads a 50 Ω load as 50.01–51.29 Ω, |X| < 0.05 Ω, SWR 1.00–1.03 from 14 to 1240 MHz.
 - Full list: [CHANGES_LZ1RVD.md](CHANGES_LZ1RVD.md). Ready binary: see Releases.
 - Linux/macOS build: `make -f linux.mk -j8` (arm-none-eabi-gcc). Windows/EmBitz build unchanged.
 

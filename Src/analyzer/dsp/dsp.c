@@ -296,6 +296,9 @@ float complex res_v, res_i;
 int i;
 int retries = 3;
 int nMeasurements=CFG_GetParam(CFG_PARAM_MEAS_NSCANS);
+    // LZ1RVD r11: same limits as DSP_Measure (buffers hold MAXNMEAS entries)
+    if (nMeasurements < 1) nMeasurements = 1;
+    if (nMeasurements > MAXNMEAS) nMeasurements = MAXNMEAS;
 REMEASURE:
     for (i = 0; i < nMeasurements; i++)
     {

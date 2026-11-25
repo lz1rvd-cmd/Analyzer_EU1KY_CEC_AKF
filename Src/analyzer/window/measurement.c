@@ -52,21 +52,15 @@ uint8_t seconds;// W.Kiefer
 static void ShowF()
 {
     char str[50];
-    uint8_t i,j;
     unsigned int freq=(unsigned int)(CFG_GetParam(CFG_PARAM_MEAS_F) / 1000);
     if(freqOld==freq) return;
     freqOld=freq;
-    sprintf(str, "F: %u MHz        ", freq);
-    if(freq>999){// WK
-        for(i=3;i<10;i++){
-            if(str[i]==' ') break;// search space before "kHz"
-        }
-        for(j=i+3;j>i-4;j--){
-           str[j+1]=str[j];
-        }
-        str[i-3]='.';
-        str[i+5]=0;
-    }
+    // LZ1RVD r11: below 1 MHz it showed e.g. "F: 500 MHz" (value is in kHz).
+    // Above 1 MHz the text is the same as before ("F: 14.000 MHz").
+    if (freq < 1000)
+        sprintf(str, "F: %u kHz        ", freq);
+    else
+        sprintf(str, "F: %u.%03u MHz", freq / 1000, freq % 1000);
 
     LCD_FillRect(LCD_MakePoint(80, 35), LCD_MakePoint(214, 72), BackGrColor);
     FONT_Write(FONT_FRANBIG, LCD_RGB(255, 127, 39), BackGrColor, 0, 36, str);// WK
@@ -122,14 +116,18 @@ int x, y;
 float complex Gx;
     //SMITH_ResetStartPoint();// WK
 
+   // LZ1RVD r11: points outside the band are skipped; the first valid point starts the
+   // curve (was: a line from the uninitialized Gx when the first points were invalid).
+   // With all 100 points valid this draws exactly as before.
+   int firstValid = 1;
    for (i = 0; i < 100; i++)
     {
         if(TOUCH_IsPressed()) return;
         if(crealf(zFine500[i])!=9999.){
             Gx = OSL_GFromZ(zFine500[i], CFG_GetParam(CFG_PARAM_R0));
-            SMITH_DrawG(i, Gx, CurvColor);
+            SMITH_DrawG(firstValid ? 0 : i, Gx, CurvColor);
+            firstValid = 0;
         }
-        else SMITH_DrawG(800, Gx, CurvColor);// trick, to write lastoffsets
     }
 
     x = (int)(crealf(G) * R) + X0;
@@ -153,7 +151,9 @@ void Scan500(int i, int k)
 {
 DSP_RX  RX;
     int fq = (int)CFG_GetParam(CFG_PARAM_MEAS_F) + (5*i+k - 50) * 10000;
-    if (fq >= BAND_FMIN)// f >= 100 kHz
+    // LZ1RVD r11: measure only inside the configured band. Outside it DSP_Measure returns
+    // a fake 50+j0 Ohm (VSWR 1.0 in the small graph), and the old Z stayed on the Smith chart.
+    if (fq >= (int)CFG_GetParam(CFG_PARAM_BAND_FMIN) && fq <= (int)CFG_GetParam(CFG_PARAM_BAND_FMAX))
     {
         GEN_SetMeasurementFreq(fq);
         Sleep(2);// was 10
@@ -164,6 +164,7 @@ DSP_RX  RX;
     else
     {
         vswr500[5*i+k] = 9999.f;
+        zFine500[5*i+k] = 9999.f + 0.f*I;
     }
 
    /* if(LCD_Get_Orientation()==1)
@@ -295,6 +296,7 @@ static void MeasurementModeGraph(DSP_RX in)
         LCD_Line(LCD_MakePoint(SCAN_ORIGIN_X + 50,  SCAN_ORIGIN_Y +  1), LCD_MakePoint(SCAN_ORIGIN_X + 50,  SCAN_ORIGIN_Y + 11), TextColor);
         LCD_Line(LCD_MakePoint(SCAN_ORIGIN_X + 150, SCAN_ORIGIN_Y +  1), LCD_MakePoint(SCAN_ORIGIN_X + 150, SCAN_ORIGIN_Y + 11), TextColor);
         LCD_Line(LCD_MakePoint(SCAN_ORIGIN_X,       SCAN_ORIGIN_Y + 17), LCD_MakePoint(SCAN_ORIGIN_X + 200, SCAN_ORIGIN_Y + 17), TextColor);   // VSWR 2.0 line
+    int firstValid = 1; // LZ1RVD r11: start the curve at the first point inside the band
     for (idx = 0; idx < 100; idx++)
     {
         if(TOUCH_IsPressed()) return;
@@ -304,8 +306,11 @@ static void MeasurementModeGraph(DSP_RX in)
                 vswr = 12.0;
             vswr=10.2f*log10f(vswr);// smooth curve ** WK **                                               //Including uninitialized values
 
-            if(idx==0)
+            if(idx==0 || firstValid)
+            {
                 p1=LCD_MakePoint(SCAN_ORIGIN_X + (idx - 1) *2, SCAN_ORIGIN_Y + 11 - (int)((vswr * 30-140)/11));
+                firstValid = 0;
+            }
             else
             {
                 p2=LCD_MakePoint(SCAN_ORIGIN_X + idx * 2, SCAN_ORIGIN_Y + 11 - (int)((vswr * 30-140)/11));
@@ -875,9 +880,9 @@ void Tune_SWR_Proc(void){// ====================================================
 
 GPIO_PinState OUTGpio;
 char str[20];
-float vswrf, vswrf_old, vswLogf, SwrDiff;
+float vswrf = 1.0f, vswrf_old, vswLogf, SwrDiff; // LZ1RVD r11: was read uninitialized
 uint32_t width, vswLog=0, Timer, SWRToneOld=0;
-uint32_t color1, k=0;
+uint32_t color1, k=4; // LZ1RVD r11: measure in the first loop (was 0 -> 4 loops with garbage)
 static LCDPoint pt;
 
     meas_maxstep = 500000;

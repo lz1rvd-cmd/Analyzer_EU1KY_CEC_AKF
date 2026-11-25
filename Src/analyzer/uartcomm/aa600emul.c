@@ -92,7 +92,9 @@ void PROTOCOL_Reset(void)
 // very simple.... when sent a frequency, return freq, realRx and imagRx as a string
 void PROTOCOL_Handler_LINSMITH(void)
 {
-    char txstr[64];                 // uart tx string buffer
+    // LZ1RVD r11: static - the UART sends in the background (IRQ) after this function
+    // returns, so a stack buffer was overwritten while it was still being transmitted.
+    static char txstr[64];          // uart tx string buffer
     DSP_RX rx;                      // impedance reading buffer
     unsigned int fint = 10000000u;  // 10MHz default freq
 
@@ -113,7 +115,7 @@ void PROTOCOL_Handler_LINSMITH(void)
 
     while(AAUART_IsBusy())
         Sleep(0); //prevent overwriting the data being transmitted
-    sprintf(txstr, "%u %f %f\r\n",fint, crealf(rx), cimagf(rx));
+    snprintf(txstr, sizeof(txstr), "%u %f %f\r\n",fint, crealf(rx), cimagf(rx)); // LZ1RVD r11: bounded
     AAUART_PutString(txstr);
     return;
 }
@@ -183,7 +185,8 @@ void PROTOCOL_Handler_AA600(void)
             return;
         }
 
-        if (FHz < BAND_FMIN)
+        // LZ1RVD r11: above BAND_FMAX DSP_Measure returns a fake 50+j0 Ohm (looks like a perfect match)
+        if (FHz < BAND_FMIN || FHz > CFG_GetParam(CFG_PARAM_BAND_FMAX))
         {
             AAUART_PutString(ERR);
         }
@@ -247,7 +250,7 @@ void PROTOCOL_Handler_AA600(void)
             rx = DSP_MeasuredZ();
             while(AAUART_IsBusy())
                 Sleep(0); //prevent overwriting the data being transmitted
-            sprintf(txstr, "%u.%06u,%.2f,%.2f\r", (unsigned)(fint / 1000000u), (unsigned)(fint % 1000000u), crealf(rx), cimagf(rx)); // LZ1RVD: exact freq (float lost up to 16 Hz)
+            snprintf(txstr, sizeof(txstr), "%u.%06u,%.2f,%.2f\r", (unsigned)(fint / 1000000u), (unsigned)(fint % 1000000u), crealf(rx), cimagf(rx)); // LZ1RVD: exact freq (float lost up to 16 Hz)
             AAUART_PutString(txstr);
             fint += fstep;
         }
